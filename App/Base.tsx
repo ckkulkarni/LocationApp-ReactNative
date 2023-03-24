@@ -12,11 +12,15 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
-import {useDispatch} from 'react-redux';
-import {addLocation} from './reducers/action';
+import {useDispatch, useSelector} from 'react-redux';
+import {addLocation} from './reducers/index';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {initializeLocations} from './reducers/index';
+type Location = {
+  address: any;
+  time: any;
+};
 export default function Base() {
   const dispatch = useDispatch();
   const [currentLocation, setCurrentLocation] = useState<any>(null);
@@ -30,6 +34,9 @@ export default function Base() {
     minute: '2-digit',
   });
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const recentLocations = useSelector(
+    (state: any) => state.LocationStore.recentLocations,
+  );
   const getLocation = async (latitude: number, longitude: number) => {
     const url = `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=1b2f48e99d8a47c0aa3cbf25072a699b`;
     try {
@@ -76,9 +83,12 @@ export default function Base() {
         const newLocation = {
           address,
           time: timestamp,
-          latitude: latitude,
-          longitude: longitude,
         };
+        dispatch(
+          initializeLocations([
+            {address: newLocation.address, time: newLocation.time},
+          ]),
+        );
         dispatch(addLocation(newLocation));
         setLocationsList(prevLocations => {
           const updatedLocations = [newLocation, ...prevLocations];
@@ -115,7 +125,6 @@ export default function Base() {
   useEffect(() => {
     requestLocationPermission();
     fetchLocation();
-    dispatch(initializeLocations(locationsList));
     const interval = setInterval(() => {
       fetchLocation();
     }, 300000);
@@ -124,7 +133,7 @@ export default function Base() {
   }, []);
   useEffect(() => {
     if (locationsList.length > 0) {
-      setCurrentLocation(locationsList[0]);
+      setCurrentLocation(recentLocations[recentLocations.length - 1]);
       setPreviousLocations(locationsList.slice(1));
     }
   }, [locationsList]);
@@ -140,7 +149,6 @@ export default function Base() {
     console.log('Pressed');
     navigation.navigate('Map', {address: currentLocation});
   };
-
   return (
     <View style={styles.container}>
       <Text style={styles.textHeaders} testID="list-current-label">
@@ -167,7 +175,7 @@ export default function Base() {
       />
       <Text style={styles.textHeaders}>Previous Locations</Text>
       <ScrollView>
-        {previousLocations.map((location, index) => (
+        {previousLocations.map((location: Location, index: number) => (
           <View key={index} style={styles.locationItem}>
             <TouchableOpacity
               onPress={() => handleLocationNavigation(currentLocation)}>
